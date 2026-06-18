@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'state_estimator = ekf_1.node_1:main'
         ],
     },
 )
