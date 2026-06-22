@@ -20,13 +20,14 @@ from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Vector3Stamped
 from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import PointStamped
 
 class StatePub(Node):
 
     def __init__(self):
         super().__init__('state_pub')
         
-        # IMU CALLBACK FUNCTION 
+        # IMU CALLBACK FUNCTION (these are the inputs 'u')
         self.accln_bodyframe = np.array([0, 0, 9.81])
         self.w= np.zeros(3)
 
@@ -45,7 +46,7 @@ class StatePub(Node):
         self.y_gps = 0.0
         self.z_gps = 0.0
 
-        #VARIABLES FOR STATE ESTIMATION FROM ONLY IMU DATA (PURE PREDICTION THAT IS) (function is propagate)
+        #VARIABLES FOR STATE ESTIMATION FROM ONLY IMU DATA (PURE PREDICTION THAT IS)
         self.position_imu = np.zeros(3)
         self.velocity_imu= np.zeros(3)
         self.orientation_imu = np.array([0.0, 0.0, 0.0, 1])
@@ -57,7 +58,7 @@ class StatePub(Node):
         self.orientation_ekf=np.array([0.0,0.0,0.0,1])
 
         #INITIALISATION OF THE MATRIX P --> can be tuned 
-        self.P = np.diag([10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+        self.P = np.diag([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000])
 
         #timer for the publisher function
         self.dt = 0.1
@@ -68,25 +69,27 @@ class StatePub(Node):
         self.imu_subscription=self.create_subscription(Imu, '/imu' ,self.imu_callback,10)
 
         #tf subscriber to generate fake GPS data
-        self.tf_subscription=self.create_subscription(
-            TFMessage, 
-            '/tf',
-            self.gps_callback,
-            10)
+        self.tf_subscription=self.create_subscription(TFMessage, '/tf', self.gps_callback,10)
         
         #VO data subscriber
         self.vo_subscription=self.create_subscription(Odometry, '/zed/zed_node/odom',self.vo_callback,10)
         
-        #publisher for publishing the estimated state 
+        #publisher for publishing the estimated state usigng only imu prediction
         self.imu_pub=self.create_publisher(Odometry, '/imu_state',10)
 
         #FOR DEBUGGING
         self.accel_world_pub_imu= self.create_publisher(Vector3Stamped, '/accel_world_imu', 10)
         self.accel_world_pub_ekf= self.create_publisher(Vector3Stamped, '/accel_world_ekf', 10)
 
-
         #kalman filter
         self.filtered_state=self.create_publisher(Odometry, '/filtered_state', 10)
+
+        #Visualiser topic for fake gps data
+        self.gps_pub = self.create_publisher(
+    PointStamped,
+    '/fake_gps',
+    10
+)
 
 
     def imu_callback(self,msg):
@@ -97,7 +100,7 @@ class StatePub(Node):
     def gps_callback(self,msg): #this is also a callback function only 
          gps_std_x = 3   # meters
          gps_std_y = 3
-         gps_std_z = 0.01
+         gps_std_z = 3
 
          for transform in msg.transforms:
             # Make sure this is the transform you want
@@ -116,6 +119,7 @@ class StatePub(Node):
 
             #printing the GPS data on the terminal 
             self.get_logger().info(f"Fake GPS: ({self.x_gps:.3f}, {self.y_gps:.3f}, {self.z_gps:.3f})")
+
     
     def vo_callback(self, msg):
 
@@ -124,13 +128,6 @@ class StatePub(Node):
         msg.pose.pose.position.y,
         msg.pose.pose.position.z
     ])
-
-        '''self.quat_vo = np.array([
-        [msg.pose.pose.orientation.x],
-        [msg.pose.pose.orientation.y],
-        [msg.pose.pose.orientation.z],
-        [msg.pose.pose.orientation.w]
-    ])'''
         
         t_current = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
@@ -141,7 +138,6 @@ class StatePub(Node):
 
         self.pos_vo_prev = pos_vo_current
         self.t_vo_prev = t_current
-        self.pos_vo = pos_vo_current
 
 
     def quat_exp(self,q):
@@ -348,16 +344,16 @@ class StatePub(Node):
 
     #PROCESS NOISE COVARIANCE MATRIX- TO BE TUNED
         Q = np.diag([
-    0.1,
-    0.1,
-    0.1,
-    0.5,
-    0.5,
-    0.5,
-    0.01,
-    0.01,
-    0.01,
-    0.01
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15
 ])
 
         # Covariance prediction
@@ -387,9 +383,9 @@ class StatePub(Node):
 
         # Measurement covariance- TUNABLE/ ARBITRARY
         R_cov = np.diag([
-        9.0,
-        9.0,
-        1e-4,
+        10000,
+        10000,
+        10000,
         0.1,
         0.1,
         0.1
@@ -448,13 +444,26 @@ class StatePub(Node):
         self.accel_world_pub_ekf.publish(accel_msg) 
     
     def publish_state(self):
+        self.get_logger().info("Iteration 8")
         if self.first_reading:
             self.first_reading = False
-            self.publish_state_imu()
+            #self.publish_state_imu()
             return 
+        gps_msg = PointStamped()
+        gps_msg.header.stamp = self.get_clock().now().to_msg()
+        gps_msg.header.frame_id = "map"      # or whatever frame TF uses
+
+        gps_msg.point.x = self.x_gps
+        gps_msg.point.y = self.y_gps
+        gps_msg.point.z = self.z_gps
+
+        self.gps_pub.publish(gps_msg)
 
         self.publish_state_imu()
         self.publish_filtered_state()
+        # Publish fake GPS
+        
+
 
 
 def main(args=None):
