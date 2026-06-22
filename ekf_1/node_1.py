@@ -3,6 +3,14 @@
 #1. Define a callback that subscribes to the IMU data 
 #2. Publish the estimated state (position and orientation) on a custom topic 
 
+
+#Pending things-
+# Adding a script for velocity measurement 
+#imu to data transition in first ekf function
+# Checking initialisation of variables in init 
+# Checking time synchronisation
+#gps noise and covariance need to match 
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
@@ -10,6 +18,7 @@ import numpy as np
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Vector3Stamped
+from tf2_msgs.msg import TFMessage
 
 class StatePub(Node):
 
@@ -28,6 +37,11 @@ class StatePub(Node):
         #FOR DEBUGGING
         self.accln_world = np.zeros(3)
 
+        #Fake gps variables
+        self.x_gps = 0.0
+        self.y_gps = 0.0
+        self.z_gps = 0.0
+
         #timer for the publisher function
         self.dt = 0.02
         self.timer = self.create_timer(self.dt, self.publish_state)
@@ -35,17 +49,69 @@ class StatePub(Node):
         #imu subscriber 
         self.imu_susbcription=self.create_subscription(Imu, '/imu' ,self.imu_callback,10)
 
+        #tf subscriber to generate fake GPS data
+        self.tf_subscription=self.create_subscription(
+            TFMessage, 
+            '/tf',
+            self.gps_generator,
+            10)
+        
+        #VO data subscriber
+        self.vo_subscription=self.create_subscription(Odometry, '/zed/zed_node/odom',vo_callback,10)
+        
+
         #publisher for publishing the estimated state 
         self.imu_pub=self.create_publisher(Odometry, '/imu_state',10)
 
             #FOR DEBUGGING
         self.accel_world_pub = self.create_publisher(Vector3Stamped, '/accel_world', 10)
 
+        #kalman filter
+        self.filtered_state=self.create_publisher('Odometry', '/filtered_state', 10)
+
 
     def imu_callback(self,msg):
             self.w=np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
             self.accln=np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
             self.get_logger().info("Received IMU data") #sanity check
+    
+    def gps_generator(self,msg):
+         gps_std_x = 3   # meters
+         gps_std_y = 3
+         gps_std_z = 0.001
+
+         for transform in msg.transforms:
+            # Make sure this is the transform you want
+            if transform.child_frame_id != "base_link":
+                continue
+
+            # True position from TF
+            x_true = transform.transform.translation.x
+            y_true = transform.transform.translation.y
+            z_true = transform.transform.translation.z
+
+            # Add Gaussian noise
+            self.x_gps = x_true + np.random.normal(0.0, gps_std_x)
+            self.y_gps = y_true + np.random.normal(0.0, gps_std_y)
+            self.z_gps = z_true + np.random.normal(0.0, gps_std_z)
+
+            #printing the GPS data on the terminal 
+            self.get_logger().info(f"Fake GPS: ({self.x_gps:.3f}, {self.y_gps:.3f}, {self.z_gps:.3f})")
+    
+    def vo_callback(self, msg):
+
+        self.pos = np.array([
+        [msg.pose.pose.position.x],
+        [msg.pose.pose.position.y],
+        [msg.pose.pose.position.z]
+    ])
+
+        self.quat = np.array([
+        [msg.pose.pose.orientation.x],
+        [msg.pose.pose.orientation.y],
+        [msg.pose.pose.orientation.z],
+        [msg.pose.pose.orientation.w]
+    ])
 
 
     def quat_exp(self,q):
@@ -110,7 +176,6 @@ class StatePub(Node):
         self.orientation = result_obj
         self.orientation /= np.linalg.norm(self.orientation)
 
-
     def publish_state(self):
             
             self.propagate_state()
@@ -143,6 +208,103 @@ class StatePub(Node):
             accel_msg.vector.y = float(self.accln_world[1])
             accel_msg.vector.z = float(self.accln_world[2])
             self.accel_world_pub.publish(accel_msg)
+    
+    def ekf_predict(self):
+        dt=self.dt
+
+        #by default we are dealing with column vectors 
+        #Defining the state vector
+        self.x = np.array([
+        [self.position[0]],
+        [self.position[1]],
+        [self.position[2]],
+        [self.velocity[0]],
+        [self.velocity[1]],
+        [self.velocity[2]]
+    ])
+        
+
+        # Jacobian F
+        F = np.array([
+        [1,0,0,dt,0,0],
+        [0,1,0,0,dt,0],
+        [0,0,1,0,0,dt],
+        [0,0,0,1,0,0],
+        [0,0,0,0,1,0],
+        [0,0,0,0,0,1]
+        ])
+
+        #PROCESS NOISE COVARIANCE MATRIX- TO BE TUNED
+        self.Q = np.diag([
+        0.1,
+        0.1,
+        0.1,
+        0.5,
+        0.5,
+        0.5
+    ])
+
+        # Covariance prediction
+        self.P = self.F @ self.P @ self.F.T + self.Q        
+         
+    def gps_update(self):
+
+        # Measurement vector
+        z = np.array([
+        [self.x_gps],
+        [self.y_gps],
+        [self.z_gps],
+        [vo_velocity[0,0]],
+        [vo_velocity[1,0]],
+        [vo_velocity[2,0]]
+    ])
+
+        # Measurement matrix z=H(x)
+        H = np.eye(6)
+
+        # Measurement covariance- TUNABLE/ ARBITRARY
+        R = np.diag([
+        9.0,
+        9.0,
+        1e-6,
+        0.1,
+        0.1,
+        0.1
+        ])
+
+        # Residuals and the covariance 
+        y = z - H @ self.x
+        S = H @ self.P @ H.T + R
+
+        # Kalman gain
+        K = self.P @ H.T @ np.linalg.inv(S)
+
+        # State update
+        self.x = self.x + K @ y
+
+        # STate estimation Covariance update (Updating P)
+        I = np.eye(6)
+        self.P = (I - K @ H) @ self.P
+             
+    
+    def publish_filtered_state(self):
+        self.position = self.x[0:3,0]
+        self.velocity = self.x[3:6,0]
+
+        msg = Odometry()
+
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "world"
+
+        msg.pose.pose.position.x = float(self.position[0])
+        msg.pose.pose.position.y = float(self.position[1])
+        msg.pose.pose.position.z = float(self.position[2])
+
+        msg.twist.twist.linear.x = float(self.velocity[0])
+        msg.twist.twist.linear.y = float(self.velocity[1])
+        msg.twist.twist.linear.z = float(self.velocity[2])
+
+        self.filtered_state.publish(msg)
 
 
 
