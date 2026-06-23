@@ -12,7 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*'))
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.[py|xml|yaml]*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,7 +27,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'state_estimator = ekf_1.node_1:main'
+            'state_estimator = ekf_1.node_1:main',
+            'visualiser = ekf_1.visualiser:main',
+
+
         ],
     },
 )
