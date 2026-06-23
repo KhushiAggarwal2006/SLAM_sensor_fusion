@@ -85,11 +85,10 @@ class StatePub(Node):
         self.filtered_state=self.create_publisher(Odometry, '/filtered_state', 10)
 
         #Visualiser topic for fake gps data
-        self.gps_pub = self.create_publisher(
-    PointStamped,
-    '/fake_gps',
-    10
-)
+        self.gps_pub = self.create_publisher(PointStamped,'/fake_gps',10)
+
+        #Visualiser topic for expected dynamics purely from physics mode
+        self.unicycle_pub=self.create_publisher(Odometry, '/unicycle_dynamics',10)
 
 
     def imu_callback(self,msg):
@@ -443,12 +442,60 @@ class StatePub(Node):
         accel_msg.vector.z = float(self.accln_world_ekf[2])
         self.accel_world_pub_ekf.publish(accel_msg) 
     
+    def publish_unicycle(self):
+        msg=Odometry()
+
+        w_left=100*np.pi/180
+        w_right=100*np.pi/180
+        radius=50/1000
+        length=526/1000
+
+        time_elapsed=self.get_clock().now().nanoseconds/1e9
+
+        w_uni=(w_right-w_left)*radius/length
+        v_uni=0.5*(w_right + w_left)*radius
+
+        x_uni=-1 + (v_uni*time_elapsed)
+
+        #in the robot's current heading frame- 
+        #linear equations give us v,w
+
+        #then we bring them to world frame
+        #here, since it is 2D Motion, w = w_z remains the same only
+
+        #v_local has to be transformed to v_global using rotation matrix derived from quaternion
+
+        #Orientation = earlier orientation * exp (1/2 * w *delta_t)
+
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "world"
+
+        msg.pose.pose.position.x = float(x_uni)
+        msg.pose.pose.position.y = float(0)
+        #msg.pose.pose.position.z = float(self.position_ekf[2])
+
+        msg.twist.twist.linear.x = float(v_uni)
+        #msg.twist.twist.linear.y = float(self.velocity_ekf[1])
+        #msg.twist.twist.linear.z = float(self.velocity_ekf[2])
+
+        msg.pose.pose.orientation.x=float(0)
+        msg.pose.pose.orientation.y=float(0)
+        msg.pose.pose.orientation.z=float(0)
+        msg.pose.pose.orientation.w=float(1)
+        
+        self.unicycle_pub.publish(msg)
+
+    
     def publish_state(self):
-        self.get_logger().info("Iteration 8")
+        self.get_logger().info("Iteration 12")
+
+
         if self.first_reading:
             self.first_reading = False
             #self.publish_state_imu()
             return 
+        
+        # Publish fake GPS
         gps_msg = PointStamped()
         gps_msg.header.stamp = self.get_clock().now().to_msg()
         gps_msg.header.frame_id = "map"      # or whatever frame TF uses
@@ -458,10 +505,9 @@ class StatePub(Node):
         gps_msg.point.z = self.z_gps
 
         self.gps_pub.publish(gps_msg)
-
+        self.publish_unicycle()
         self.publish_state_imu()
         self.publish_filtered_state()
-        # Publish fake GPS
         
 
 
