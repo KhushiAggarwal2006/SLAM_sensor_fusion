@@ -1,0 +1,15 @@
+<library path=".">
+  <class name="TrajectoryWidget" type="ekf_1.visualiser.TrajectoryWidget" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      Multi-source trajectory viewer (ZED, IMU, EKF, TF, unicycle model).
+    </description>
+    <qtgui>
+      <group>
+        <label>Visualization</label>
+      </group>
+      <label>Trajectory Viewer</label>
+      <icon type="theme">utilities-system-monitor</icon>
+      <statustip>Plot multiple trajectory sources</statustip>
+    </qtgui>
+  </class>
+</library>

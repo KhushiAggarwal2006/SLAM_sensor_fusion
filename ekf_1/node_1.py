@@ -445,7 +445,7 @@ class StatePub(Node):
     def publish_unicycle(self):
         msg=Odometry()
 
-        w_left=800*np.pi/180
+        w_left=100*np.pi/180
         w_right=100*np.pi/180
         radius=50/1000
         length=526/1000
@@ -455,13 +455,16 @@ class StatePub(Node):
         w_uni=(w_right-w_left)*radius/length
         v_uni=0.5*(w_right + w_left)*radius
 
-        x_uni=-1 + (v_uni*time_elapsed)
-
-        r_traj=v_uni/w_uni
-        x_centre=-1
-        y_centre=0-r_traj
-        x_uni=x_centre+ (r_traj*np.cos(w_uni*time_elapsed))
-        y_uni=y_centre + (r_traj*np.cos(w_uni*time_elapsed))
+        if abs(w_left-w_right)<1e-6:
+            x_uni=-1 + (v_uni*time_elapsed)
+            y_uni=0
+        
+        else:
+            r_traj=v_uni/w_uni
+            x_centre=-1
+            y_centre=0-r_traj
+            x_uni=x_centre+ (r_traj*np.cos(w_uni*time_elapsed))
+            y_uni=y_centre + (r_traj*np.sin(w_uni*time_elapsed))
 
         #in the robot's current heading frame- 
         #linear equations give us v,w
