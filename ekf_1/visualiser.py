@@ -80,6 +80,9 @@ class TrajectoryWidget(Plugin):
 
         self.setObjectName('TrajectoryWidget')
 
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
+
         # -------- QWidget -------- #
         self._widget = QWidget()
         self._layout = QVBoxLayout(self._widget)
@@ -112,11 +115,16 @@ class TrajectoryWidget(Plugin):
         self._layout.addWidget(self.plot)
 
         # curves
-        self.zed_curve = self.plot.plot(pen='r', name="ZED Odom")
-        self.imu_curve = self.plot.plot(pen='g', name="IMU State")
-        self.filt_curve = self.plot.plot(pen='b', name="Filtered State")
-        self.tf_curve = self.plot.plot(pen='y', name="TF world→base_link")
-        self.uni_curve = self.plot.plot(pen='m', name="Unicycle Dynamics")
+        self.zed_curve = self.plot.plot(
+        pen=pg.mkPen(color='#c0392b', width=2), name="ZED Odom")
+        self.imu_curve = self.plot.plot(
+        pen=pg.mkPen(color='#196f3d', width=2), name="IMU State")
+        self.filt_curve = self.plot.plot(
+        pen=pg.mkPen(color='#1a5276', width=2), name="Filtered State")
+        self.tf_curve = self.plot.plot(
+        pen=pg.mkPen(color='#b9770e', width=2), name="TF world→base_link")
+        self.uni_curve = self.plot.plot(
+        pen=pg.mkPen(color='#6c3483', width=2), name="Unicycle Dynamics")
 
         # wire checkboxes to curve visibility
         self.zed_checkbox.stateChanged.connect(

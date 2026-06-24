@@ -446,7 +446,7 @@ class StatePub(Node):
         msg=Odometry()
 
         w_left=100*np.pi/180
-        w_right=100*np.pi/180
+        w_right=800*np.pi/180
         radius=50/1000
         length=526/1000
 
@@ -460,7 +460,7 @@ class StatePub(Node):
             y_uni=0
         
         else:
-            r_traj=v_uni/w_uni
+            r_traj=10*v_uni/w_uni
             x_centre=-1
             y_centre=0-r_traj
             x_uni=x_centre+ (r_traj*np.cos(w_uni*time_elapsed))
@@ -496,7 +496,7 @@ class StatePub(Node):
 
     
     def publish_state(self):
-        self.get_logger().info("Iteration 12")
+        self.get_logger().info("Iteration 17")
 
 
         if self.first_reading:
