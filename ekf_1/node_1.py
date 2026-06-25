@@ -48,7 +48,7 @@ class StatePub(Node):
         self.z_gps = 0.0
 
         #VARIABLES FOR STATE ESTIMATION FROM ONLY IMU DATA (PURE PREDICTION THAT IS)
-        self.position_imu = np.zeros(3)
+        self.position_imu = np.array([-1, 0.0, 0.0])
         self.velocity_imu= np.zeros(3)
         self.orientation_imu = np.array([0.0, 0.0, 0.0, 1])
 
