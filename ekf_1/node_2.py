@@ -139,6 +139,26 @@ class StatePub(Node):
         self.pos_vo_prev = pos_vo_current
         self.t_vo_prev = t_current
 
+    def exp_so3(self, omega_dt):
+        theta = np.linalg.norm(omega_dt)
+
+    # small angle approximation
+        if theta < 1e-12:
+            return np.array([
+            0.5 * omega_dt[0],
+            0.5 * omega_dt[1],
+            0.5 * omega_dt[2],
+            1.0
+        ])
+
+        axis = omega_dt / theta
+        half = 0.5 * theta
+
+        dq = np.zeros(4)
+        dq[0:3] = axis * np.sin(half)
+        dq[3]   = np.cos(half)
+
+        return dq
 
     def quat_exp(self,q):
         v = np.asarray(q[:3], dtype=float)
@@ -191,10 +211,9 @@ class StatePub(Node):
         self.position_imu = (p_prev+ (v_prev * dt)+ (0.5 * self.accln_world_imu * (dt**2)))
 
         # 1. Define your input quaternions in [x, y, z, w] format
-        q1 = q_prev
-        q2 = np.array([self.w[0], self.w[1], self.w[2], 0])
-        q2=q2*0.5*dt
-        q2=self.quat_exp(q2)
+        q1=q_prev
+        omega_dt = self.w * dt              # gyro integration (rad/s → rad)
+        q2 = self.exp_so3(omega_dt)         # SO(3) exponential map
 
         # 4. Perform direct algebraic multiplication (q1 * q2)
         result_obj = self.quat_multiply(q1,q2)
@@ -367,28 +386,20 @@ class StatePub(Node):
         [self.x_gps],
         [self.y_gps],
         [self.z_gps],
-        [self.vo_velocity[0]],
-        [self.vo_velocity[1]],
-        [self.vo_velocity[2]]
     ])
 
         # Measurement matrix z=H(x)
-        H = np.zeros((6,10))
+        H = np.zeros((3,10))
         H[0,0] = 1
         H[1,1] = 1
         H[2,2] = 1
-        H[3,3] = 1
-        H[4,4] = 1
-        H[5,5] = 1
+
 
         # Measurement covariance- TUNABLE/ ARBITRARY
         R_cov = np.diag([
-        10000,
-        10000,
-        10000,
-        0.1,
-        0.1,
-        0.1
+        20000,
+        20000,
+        20000
         ])
 
         # Residuals and the covariance 
@@ -497,7 +508,7 @@ class StatePub(Node):
 
     
     def publish_state(self):
-        self.get_logger().info("Iteration 20")
+        self.get_logger().info("Iteration II")
 
 
         if self.first_reading:

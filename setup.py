@@ -28,9 +28,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'state_estimator = ekf_1.node_1:main',
-            'visualiser = ekf_1.visualiser:main',
-
+            'state_estimator = ekf_1.node_2:main', #without VO data :)
+            #'visualiser = ekf_1.visualiser:main',
 
         ],
     },
