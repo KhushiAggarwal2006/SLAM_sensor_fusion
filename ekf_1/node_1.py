@@ -366,30 +366,32 @@ class StatePub(Node):
         z = np.array([
         [self.x_gps],
         [self.y_gps],
-        [self.z_gps],
+        [self.z_gps]])
+        ''',
         [self.vo_velocity[0]],
         [self.vo_velocity[1]],
-        [self.vo_velocity[2]]
-    ])
+        [self.vo_velocity[2]]'''
+    
 
         # Measurement matrix z=H(x)
-        H = np.zeros((6,10))
+        H = np.zeros((3,10))
         H[0,0] = 1
         H[1,1] = 1
         H[2,2] = 1
-        H[3,3] = 1
+        '''H[3,3] = 1
         H[4,4] = 1
-        H[5,5] = 1
+        H[5,5] = 1'''
 
         # Measurement covariance- TUNABLE/ ARBITRARY
         R_cov = np.diag([
         10000,
         10000,
-        10000,
+        10000  ])
+        ''',
         0.1,
         0.1,
-        0.1
-        ])
+        0.1'''
+      
 
         # Residuals and the covariance 
         y = z - H @ self.x
@@ -497,7 +499,7 @@ class StatePub(Node):
 
     
     def publish_state(self):
-        self.get_logger().info("Iteration 20")
+        self.get_logger().info("Iteration NO VO")
 
 
         if self.first_reading:
