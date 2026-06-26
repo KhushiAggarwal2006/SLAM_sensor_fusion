@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'state_estimator = ekf_1.node_1:main', #without VO data :)
+            'quaternion = ekf_1.quat_trial:main'
             #'visualiser = ekf_1.visualiser:main',
 
         ],
